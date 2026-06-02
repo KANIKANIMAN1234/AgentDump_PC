@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/upload.js": { "maxDuration": 60 },
+    "api/export-insights.js": { "maxDuration": 60 },
+    "api/chat.js": { "maxDuration": 60 }
+  },
   "rewrites": [
     { "source": "/app", "destination": "/app/index.html" },
     { "source": "/app/", "destination": "/app/index.html" },
