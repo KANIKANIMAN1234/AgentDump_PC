@@ -6,7 +6,7 @@
     "node": "20.x"
   },
   "dependencies": {
-    "@googleapis/drive": "^144.0.0",
+    "@googleapis/drive": "^20.2.0",
     "@supabase/supabase-js": "^2.49.4",
     "google-auth-library": "^9.15.1",
     "openai": "^4.100.0"
