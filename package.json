@@ -4,7 +4,6 @@
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
-    "google-auth-library": "^9.15.1",
-    "openai": "^4.100.0"
+    "google-auth-library": "^9.15.1"
   }
 }
