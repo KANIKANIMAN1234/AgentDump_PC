@@ -46,6 +46,7 @@ const API = {
   companies(q) { return this.get(`/api/client-companies${q ? `?q=${encodeURIComponent(q)}` : ""}`); },
   company(id) { return this.get(`/api/client-companies?id=${id}`); },
   createCompany(body) { return this.post("/api/client-companies", body); },
+  parseCompanyText(content) { return this.post("/api/parse-company", { content }); },
   updateCompany(id, body) { return this.patch(`/api/client-companies?id=${id}`, body); },
   deleteCompany(id) { return this.delete(`/api/client-companies?id=${id}`); },
   memos(companyId) { return this.get(`/api/company-memos?companyId=${companyId}`); },

@@ -52,6 +52,7 @@ const Pages = {
       <div class="toolbar">
         <input type="text" id="company-search" placeholder="企業名で検索..." style="max-width:280px" />
         <button class="btn btn-primary" id="btn-new-company">＋ 新規登録</button>
+        <button class="btn" id="btn-bulk-company">📋 テキストから一括登録</button>
       </div>
       <div class="card" id="companies-list"><div class="empty-state">読み込み中...</div></div>
     `;
@@ -80,6 +81,7 @@ const Pages = {
     await load("");
     document.getElementById("company-search").addEventListener("input", (e) => load(e.target.value));
     document.getElementById("btn-new-company").addEventListener("click", () => Pages.showCompanyForm(null));
+    document.getElementById("btn-bulk-company").addEventListener("click", () => Pages.showCompanyBulkImport(load));
   },
 
   companyFormFields(c = {}) {
@@ -101,8 +103,106 @@ const Pages = {
       </div>`;
   },
 
-  async showCompanyForm(id) {
-    let c = {};
+  showCompanyBulkImport(reload) {
+    let parsedPositions = [];
+    openModal("テキストから一括登録", `
+      <p style="color:var(--gray-dark);font-size:13px;margin-bottom:12px;line-height:1.6">
+        企業から受け取った採用募集情報を貼り付けてください。AI が<strong>ポジションごとに1件</strong>へ分割します（1社・複数求人 → 複数レコード）。
+      </p>
+      <div class="form-group full">
+        <label>原文テキスト</label>
+        <textarea id="bulk-company-source" rows="8" placeholder="採用募集要項・求人票・メール本文などをそのまま貼り付け"></textarea>
+      </div>
+      <button type="button" class="btn btn-primary" id="bulk-company-parse">AIで解析</button>
+      <div id="bulk-company-preview" style="margin-top:16px"></div>
+    `, `
+      <button class="btn" id="bulk-company-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="bulk-company-save" disabled>0件を登録</button>
+    `);
+
+    const preview = () => document.getElementById("bulk-company-preview");
+    const saveBtn = document.getElementById("bulk-company-save");
+
+    function renderPreview() {
+      if (!parsedPositions.length) {
+        preview().innerHTML = "";
+        saveBtn.disabled = true;
+        saveBtn.textContent = "0件を登録";
+        return;
+      }
+      preview().innerHTML = `
+        <h3 style="font-size:13px;color:var(--dulton-navy);margin-bottom:8px">解析結果（${parsedPositions.length}件）</h3>
+        <div class="bulk-position-list">${parsedPositions.map((p, i) => `
+          <div class="bulk-position-item" data-idx="${i}">
+            <div class="bulk-position-head">
+              <label><input type="checkbox" class="bulk-pos-check" data-idx="${i}" checked />
+                <strong>${escapeHtml(p.name)}</strong></label>
+              <button type="button" class="btn btn-sm bulk-pos-edit" data-idx="${i}">編集</button>
+            </div>
+            <p class="bulk-position-snippet">${escapeHtml((p.job_posting || "（募集要項なし）").slice(0, 120))}${(p.job_posting || "").length > 120 ? "…" : ""}</p>
+          </div>`).join("")}</div>`;
+      saveBtn.disabled = false;
+      saveBtn.textContent = `${parsedPositions.length}件を登録`;
+      preview().querySelectorAll(".bulk-pos-check").forEach((cb) => {
+        cb.addEventListener("change", () => {
+          const n = preview().querySelectorAll(".bulk-pos-check:checked").length;
+          saveBtn.disabled = n === 0;
+          saveBtn.textContent = `${n}件を登録`;
+        });
+      });
+      preview().querySelectorAll(".bulk-pos-edit").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const idx = Number(btn.dataset.idx);
+          const p = parsedPositions[idx];
+          if (!p) return;
+          closeModal();
+          Pages.showCompanyForm(null, reload, p);
+        });
+      });
+    }
+
+    document.getElementById("bulk-company-cancel").onclick = closeModal;
+    document.getElementById("bulk-company-parse").onclick = async () => {
+      const content = document.getElementById("bulk-company-source").value.trim();
+      if (!content) { showToast("テキストを貼り付けてください"); return; }
+      const btn = document.getElementById("bulk-company-parse");
+      btn.disabled = true;
+      btn.textContent = "解析中…";
+      try {
+        const data = await API.parseCompanyText(content);
+        parsedPositions = data.positions || [];
+        renderPreview();
+        showToast(`${parsedPositions.length}件のポジションを抽出しました`);
+      } catch (e) {
+        showToast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "AIで解析";
+      }
+    };
+    saveBtn.onclick = async () => {
+      const checks = preview().querySelectorAll(".bulk-pos-check:checked");
+      const indices = [...checks].map((cb) => Number(cb.dataset.idx));
+      if (!indices.length) return;
+      saveBtn.disabled = true;
+      let ok = 0;
+      try {
+        for (const i of indices) {
+          await API.createCompany(parsedPositions[i]);
+          ok++;
+        }
+        closeModal();
+        showToast(`${ok}件を登録しました`);
+        reload("");
+      } catch (e) {
+        showToast(e.message);
+        saveBtn.disabled = false;
+      }
+    };
+  },
+
+  async showCompanyForm(id, reload, preset = null) {
+    let c = preset || {};
     if (id) {
       const res = await API.company(id);
       c = res.company;
@@ -133,7 +233,8 @@ const Pages = {
         else await API.createCompany(body);
         closeModal();
         showToast("保存しました");
-        App.navigate("companies");
+        if (typeof reload === "function") reload("");
+        else App.navigate("companies");
       } catch (e) { showToast(e.message); }
     };
   },
