@@ -36,6 +36,13 @@ const API = {
   },
 
   authMe() { return this.get("/api/auth/me"); },
+  activateInvite(code) {
+    return this.post("/api/auth/activate", { invite: code });
+  },
+  orgSetup(body) { return this.post("/api/org/setup", body); },
+  orgTree() { return this.get("/api/org/tree"); },
+  orgInvite(body) { return this.post("/api/org/invite", body); },
+  orgMembers() { return this.get("/api/org/members"); },
   companies(q) { return this.get(`/api/client-companies${q ? `?q=${encodeURIComponent(q)}` : ""}`); },
   company(id) { return this.get(`/api/client-companies?id=${id}`); },
   createCompany(body) { return this.post("/api/client-companies", body); },

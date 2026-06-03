@@ -20,9 +20,21 @@ const Auth = {
     const token = liff.getAccessToken();
     API.setToken(token);
 
+    const invite = new URLSearchParams(location.search).get("invite");
+    if (invite) {
+      try {
+        await API.activateInvite(invite);
+        history.replaceState({}, "", location.pathname + location.hash);
+        showToast("招待を受け付けました");
+      } catch (e) {
+        throw new Error(`招待の有効化に失敗しました: ${e.message}`);
+      }
+    }
+
     const me = await API.authMe();
     API.me = me;
     this.renderUserInfo(me);
+    if (typeof OrgAdmin !== "undefined") OrgAdmin.init(me);
     return true;
   },
 
@@ -36,7 +48,7 @@ const Auth = {
       ${profile.pictureUrl ? `<img src="${profile.pictureUrl}" alt="" />` : ""}
       <div>
         <div>${escapeHtml(profile.displayName || "ユーザー")}</div>
-        <small style="color:#94a3b8">${me.legacy ? "個人モード" : escapeHtml(me.member?.role || "")}</small>
+        <small style="opacity:0.75">${me.legacy ? "個人モード" : escapeHtml(me.member?.role || "")}</small>
       </div>
     `;
   },

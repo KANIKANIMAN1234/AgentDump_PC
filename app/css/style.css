@@ -535,6 +535,225 @@ textarea:focus {
 
 .link:hover { color: var(--dulton-navy); }
 
+/* 組織管理ページ */
+.org-page { padding: 0; overflow: hidden; }
+
+.org-panel-inner { padding: 24px; }
+
+.org-en-label {
+  margin: 0 0 8px;
+  font-family: var(--font-en);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--dulton-navy);
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.org-panel-inner h3 {
+  margin: 16px 0 8px;
+  font-family: var(--font-en);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--dulton-navy);
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.org-sub {
+  color: var(--gray-dark);
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.org-depth-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.org-solo-note {
+  background: var(--surface-blue);
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+}
+
+.org-depth-btn {
+  padding: 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--text-dark);
+  font-family: var(--font-jp);
+  cursor: pointer;
+  line-height: 1.6;
+  transition: border-color 0.15s;
+}
+
+.org-depth-btn small {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.org-depth-btn:hover { border-color: var(--dulton-navy); color: var(--dulton-navy); }
+
+.org-block,
+.org-sub-block {
+  border: 1px solid var(--border);
+  padding: 12px;
+  margin-bottom: 12px;
+  background: var(--white);
+}
+
+.org-input-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.org-input-row input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  font-family: var(--font-jp);
+  font-size: 13px;
+  height: 36px;
+}
+
+.org-input-row input:focus { border: 2px solid var(--dulton-navy); outline: none; }
+
+.org-panel-inner label {
+  display: block;
+  font-size: 12px;
+  margin: 8px 0 4px;
+  color: var(--gray-dark);
+  line-height: 1.5;
+}
+
+.org-panel-inner input[type="text"],
+.org-panel-inner select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+  font-family: var(--font-jp);
+  font-size: 13px;
+  height: 36px;
+}
+
+.org-panel-inner input:focus,
+.org-panel-inner select:focus {
+  border: 2px solid var(--dulton-navy);
+  outline: none;
+}
+
+.org-terms {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+  margin: 16px 0;
+  line-height: 1.6;
+}
+
+.org-terms input { margin-top: 3px; width: auto; }
+
+.org-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.org-remove-btn {
+  min-width: 36px;
+  padding: 0 8px;
+}
+
+.org-result {
+  background: var(--surface-light);
+  padding: 12px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin-top: 6px;
+  line-height: 1.6;
+}
+
+.org-invite-result-area { margin-top: 12px; }
+
+.org-invite-highlight {
+  background: var(--surface-blue);
+  border: 1px solid var(--dulton-navy);
+  padding: 14px;
+  margin-bottom: 8px;
+}
+
+.org-invite-title {
+  margin: 0 0 10px;
+  font-family: var(--font-en);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--dulton-navy);
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.org-invite-url-row { display: flex; gap: 6px; }
+
+.org-invite-url-input {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  word-break: break-all;
+  font-family: var(--font-jp);
+  height: 36px;
+}
+
+.org-invite-meta {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--gray-dark);
+  line-height: 1.6;
+}
+
+.org-result-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--gray-dark);
+  line-height: 1.6;
+}
+
+.org-member-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.org-member-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.org-member-item strong { display: block; font-weight: 500; }
+
+.org-member-item span {
+  color: var(--gray-dark);
+  font-size: 12px;
+}
+
 @media (max-width: 900px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .form-grid { grid-template-columns: 1fr; }

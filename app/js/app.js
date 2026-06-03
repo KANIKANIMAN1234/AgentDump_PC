@@ -4,6 +4,7 @@ const PAGE_TITLES = {
   "job-seekers": "転職者",
   tasks: "タスク",
   insights: "気づき",
+  organization: "組織",
   settings: "設定",
 };
 
@@ -23,7 +24,12 @@ const App = {
       });
 
       const hash = location.hash.replace("#", "") || "dashboard";
-      this.navigate(hash in PAGE_TITLES ? hash : "dashboard");
+      const initial = hash in PAGE_TITLES ? hash : "dashboard";
+      if (API.me?.needsOrgSetup) {
+        this.navigate("organization");
+      } else {
+        this.navigate(initial);
+      }
     } catch (e) {
       document.getElementById("loading-screen").innerHTML = `
         <p style="color:#dc2626;max-width:400px;text-align:center">${escapeHtml(e.message)}</p>
@@ -47,6 +53,7 @@ const App = {
     try {
       const fn = Pages[page.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] || Pages[page];
       if (page === "job-seekers") await Pages.jobSeekers(container);
+      else if (page === "organization") await Pages.organization(container);
       else if (fn) await fn(container);
       else container.innerHTML = `<div class="empty-state">ページが見つかりません</div>`;
     } catch (e) {

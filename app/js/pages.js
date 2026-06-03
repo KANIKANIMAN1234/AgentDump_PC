@@ -36,7 +36,10 @@ const Pages = {
         <td>${escapeHtml(t.company_name || "—")}</td>
         <td>${escapeHtml(t.job_seeker_name || "—")}</td>
         <td>${t.due_date || "—"}</td>
-        ${showActions ? `<td><button class="btn btn-sm btn-primary" data-complete-task="${t.id}">完了</button></td>` : ""}
+        ${showActions ? `<td>
+        <button class="btn btn-sm" data-edit-task="${t.id}">編集</button>
+        <button class="btn btn-sm btn-primary" data-complete-task="${t.id}">完了</button>
+      </td>` : ""}
       </tr>`).join("")}</tbody></table>`;
   },
 
@@ -106,9 +109,21 @@ const Pages = {
     }
     openModal(id ? "採用企業を編集" : "採用企業を登録", Pages.companyFormFields(c), `
       <button class="btn" id="modal-cancel">キャンセル</button>
+      ${id ? `<button class="btn btn-danger" id="modal-delete-company">削除</button>` : ""}
       <button class="btn btn-primary" id="modal-save">保存</button>
     `);
     document.getElementById("modal-cancel").onclick = closeModal;
+    if (id) {
+      document.getElementById("modal-delete-company").onclick = async () => {
+        if (!confirm("この採用企業を削除しますか？")) return;
+        try {
+          await API.deleteCompany(id);
+          closeModal();
+          showToast("削除しました");
+          App.navigate("companies");
+        } catch (e) { showToast(e.message); }
+      };
+    }
     document.getElementById("modal-save").onclick = async () => {
       const form = document.getElementById("modal-body");
       const body = {};
@@ -139,7 +154,9 @@ const Pages = {
         <div class="card-header"><h3>企業メモ</h3><button class="btn btn-sm btn-primary" id="btn-add-memo">＋ メモ追加</button></div>
         <div class="memo-list">${(memos || []).map((m) => `
           <div class="memo-item">
-            <div class="memo-meta">${(m.created_at || "").slice(0, 10)} · 作成: ${escapeHtml(m.created_by_name)}</div>
+            <div class="memo-meta">${(m.created_at || "").slice(0, 10)} · 作成: ${escapeHtml(m.created_by_name)}
+              <button class="btn btn-sm btn-danger" style="float:right" data-delete-memo="${m.id}">削除</button>
+            </div>
             <h4>${escapeHtml(m.title || "（無題）")}</h4>
             <p>${escapeHtml(m.content)}</p>
           </div>`).join("") || `<div class="empty-state">メモがありません</div>`}
@@ -149,6 +166,17 @@ const Pages = {
     document.getElementById("modal-close2").onclick = closeModal;
     document.getElementById("edit-company-btn").onclick = () => { closeModal(); Pages.showCompanyForm(id); };
     document.getElementById("btn-add-memo").onclick = () => Pages.showMemoForm(id);
+    document.querySelectorAll("[data-delete-memo]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("このメモを削除しますか？")) return;
+        try {
+          await API.deleteMemo(btn.dataset.deleteMemo);
+          showToast("メモを削除しました");
+          closeModal();
+          Pages.showCompanyDetail(id);
+        } catch (e) { showToast(e.message); }
+      });
+    });
   },
 
   showMemoForm(companyId) {
@@ -340,6 +368,12 @@ const Pages = {
           } catch (e) { showToast(e.message); }
         });
       });
+      list.querySelectorAll("[data-edit-task]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const task = tasks.find((t) => t.id === btn.dataset.editTask);
+          if (task) Pages.showTaskEditForm(task, companies, seekers, load);
+        });
+      });
     };
 
     document.getElementById("filter-company").addEventListener("change", load);
@@ -382,6 +416,64 @@ const Pages = {
         onSave();
       } catch (e) { showToast(e.message); }
     };
+  },
+
+  showTaskEditForm(task, companies, seekers, onSave) {
+    const due = task.due_date ? String(task.due_date).slice(0, 10) : "";
+    openModal("タスクを編集", `
+      <div class="form-grid">
+        <div class="form-group full"><label>タスク内容 *</label><input name="title" required value="${escapeHtml(task.title)}" /></div>
+        <div class="form-group"><label>担当企業</label>
+          <select name="client_company_id"><option value="">—</option>
+            ${companies.map((c) => `<option value="${c.id}" ${task.client_company_id === c.id ? "selected" : ""}>${escapeHtml(c.name)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-group"><label>転職者</label>
+          <select name="job_seeker_id"><option value="">—</option>
+            ${seekers.map((s) => `<option value="${s.id}" ${task.job_seeker_id === s.id ? "selected" : ""}>${escapeHtml(s.name)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-group"><label>期限</label><input name="due_date" type="date" value="${due}" /></div>
+        <div class="form-group"><label>優先度</label>
+          <select name="priority">
+            ${["高", "中", "低"].map((p) => `<option value="${p}" ${(task.priority || "中") === p ? "selected" : ""}>${p}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+    `, `
+      <button class="btn btn-danger" id="delete-task">削除</button>
+      <button class="btn" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" id="save-task">保存</button>
+    `);
+    document.getElementById("delete-task").onclick = async () => {
+      if (!confirm("このタスクを削除しますか？")) return;
+      try {
+        await API.deleteTask(task.id);
+        closeModal();
+        showToast("タスクを削除しました");
+        onSave();
+      } catch (e) { showToast(e.message); }
+    };
+    document.getElementById("save-task").onclick = async () => {
+      const form = document.getElementById("modal-body");
+      const body = {
+        id: task.id,
+        title: form.querySelector("[name=title]").value,
+      };
+      ["client_company_id", "job_seeker_id", "due_date", "priority"].forEach((f) => {
+        body[f] = form.querySelector(`[name=${f}]`).value || null;
+      });
+      try {
+        await API.updateTask(body);
+        closeModal();
+        showToast("タスクを更新しました");
+        onSave();
+      } catch (e) { showToast(e.message); }
+    };
+  },
+
+  async organization(container) {
+    await OrgAdmin.renderPage(container);
   },
 
   async insights(container) {
