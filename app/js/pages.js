@@ -64,10 +64,11 @@ const Pages = {
         return;
       }
       list.innerHTML = `<table class="data-table"><thead><tr>
-        <th>企業名</th><th>更新日</th><th></th>
+        <th>企業名</th><th>募集ポジション</th><th>更新日</th><th></th>
       </tr></thead><tbody>${companies.map((c) => `
         <tr>
           <td><a href="#" class="link" data-company-id="${c.id}">${escapeHtml(c.name)}</a></td>
+          <td>${c.active_posting_count ?? c.posting_count ?? 0} 件</td>
           <td>${(c.updated_at || c.created_at || "").slice(0, 10)}</td>
           <td><button class="btn btn-sm" data-edit-company="${c.id}">編集</button></td>
         </tr>`).join("")}</tbody></table>`;
@@ -88,7 +89,6 @@ const Pages = {
     return `
       <div class="form-grid">
         <div class="form-group full"><label>企業名 *</label><input name="name" value="${escapeHtml(c.name || "")}" required /></div>
-        <div class="form-group full"><label>採用募集要項</label><textarea name="job_posting">${escapeHtml(c.job_posting || "")}</textarea></div>
         <div class="form-group full"><label>企業文化（非公開）</label><textarea name="company_culture">${escapeHtml(c.company_culture || "")}</textarea></div>
         <div class="form-group full"><label>内部メモ（非公開）</label><textarea name="internal_notes">${escapeHtml(c.internal_notes || "")}</textarea></div>
         <div class="form-group"><label>人事担当者</label><input name="hr_name" value="${escapeHtml(c.hr_name || "")}" /></div>
@@ -104,61 +104,76 @@ const Pages = {
   },
 
   showCompanyBulkImport(reload) {
-    let parsedPositions = [];
+    let parsedEntries = [];
     openModal("テキストから一括登録", `
       <p style="color:var(--gray-dark);font-size:13px;margin-bottom:12px;line-height:1.6">
-        企業から受け取った採用募集情報を貼り付けてください。AI が<strong>ポジションごとに1件</strong>へ分割します（1社・複数求人 → 複数レコード）。
+        採用募集情報を貼り付けると、AI が<strong>企業マスタ</strong>と<strong>募集ポジション（1ポジション=1件）</strong>に分割します。
       </p>
       <div class="form-group full">
         <label>原文テキスト</label>
-        <textarea id="bulk-company-source" rows="8" placeholder="採用募集要項・求人票・メール本文などをそのまま貼り付け"></textarea>
+        <textarea id="bulk-company-source" rows="8" placeholder="採用募集要項・求人票・メール本文など"></textarea>
       </div>
       <button type="button" class="btn btn-primary" id="bulk-company-parse">AIで解析</button>
       <div id="bulk-company-preview" style="margin-top:16px"></div>
     `, `
       <button class="btn" id="bulk-company-cancel">キャンセル</button>
-      <button class="btn btn-primary" id="bulk-company-save" disabled>0件を登録</button>
+      <button class="btn btn-primary" id="bulk-company-save" disabled>0件のポジションを登録</button>
     `);
 
     const preview = () => document.getElementById("bulk-company-preview");
     const saveBtn = document.getElementById("bulk-company-save");
 
+    function flatPositions() {
+      const rows = [];
+      parsedEntries.forEach((entry, ei) => {
+        entry.positions.forEach((pos, pi) => {
+          rows.push({ ei, pi, company: entry.company, position: pos });
+        });
+      });
+      return rows;
+    }
+
+    function updateSaveLabel() {
+      const n = preview().querySelectorAll(".bulk-pos-check:checked").length;
+      saveBtn.disabled = n === 0;
+      saveBtn.textContent = `${n}件のポジションを登録`;
+    }
+
     function renderPreview() {
-      if (!parsedPositions.length) {
+      const flat = flatPositions();
+      if (!flat.length) {
         preview().innerHTML = "";
         saveBtn.disabled = true;
-        saveBtn.textContent = "0件を登録";
+        saveBtn.textContent = "0件のポジションを登録";
         return;
       }
       preview().innerHTML = `
-        <h3 style="font-size:13px;color:var(--dulton-navy);margin-bottom:8px">解析結果（${parsedPositions.length}件）</h3>
-        <div class="bulk-position-list">${parsedPositions.map((p, i) => `
-          <div class="bulk-position-item" data-idx="${i}">
-            <div class="bulk-position-head">
-              <label><input type="checkbox" class="bulk-pos-check" data-idx="${i}" checked />
-                <strong>${escapeHtml(p.name)}</strong></label>
-              <button type="button" class="btn btn-sm bulk-pos-edit" data-idx="${i}">編集</button>
-            </div>
-            <p class="bulk-position-snippet">${escapeHtml((p.job_posting || "（募集要項なし）").slice(0, 120))}${(p.job_posting || "").length > 120 ? "…" : ""}</p>
+        <h3 style="font-size:13px;color:var(--dulton-navy);margin-bottom:8px">
+          解析結果: ${parsedEntries.length}社 / ${flat.length}ポジション
+        </h3>
+        <div class="bulk-position-list">${parsedEntries.map((entry, ei) => `
+          <div class="bulk-position-item">
+            <strong style="display:block;margin-bottom:6px">${escapeHtml(entry.company.name)}</strong>
+            ${entry.positions.map((pos, pi) => `
+              <div class="bulk-position-head" style="margin-bottom:6px">
+                <label><input type="checkbox" class="bulk-pos-check" data-ei="${ei}" data-pi="${pi}" checked />
+                  ${escapeHtml(pos.title)}</label>
+              </div>
+              <p class="bulk-position-snippet">${escapeHtml((pos.job_posting || "—").slice(0, 100))}${(pos.job_posting || "").length > 100 ? "…" : ""}</p>
+            `).join("")}
           </div>`).join("")}</div>`;
-      saveBtn.disabled = false;
-      saveBtn.textContent = `${parsedPositions.length}件を登録`;
       preview().querySelectorAll(".bulk-pos-check").forEach((cb) => {
-        cb.addEventListener("change", () => {
-          const n = preview().querySelectorAll(".bulk-pos-check:checked").length;
-          saveBtn.disabled = n === 0;
-          saveBtn.textContent = `${n}件を登録`;
-        });
+        cb.addEventListener("change", updateSaveLabel);
       });
-      preview().querySelectorAll(".bulk-pos-edit").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const idx = Number(btn.dataset.idx);
-          const p = parsedPositions[idx];
-          if (!p) return;
-          closeModal();
-          Pages.showCompanyForm(null, reload, p);
-        });
-      });
+      updateSaveLabel();
+    }
+
+    async function findOrCreateCompany(companyData) {
+      const { companies } = await API.companies(companyData.name);
+      const exact = (companies || []).find((c) => c.name === companyData.name);
+      if (exact) return exact.id;
+      const { company } = await API.createCompany(companyData);
+      return company.id;
     }
 
     document.getElementById("bulk-company-cancel").onclick = closeModal;
@@ -170,9 +185,9 @@ const Pages = {
       btn.textContent = "解析中…";
       try {
         const data = await API.parseCompanyText(content);
-        parsedPositions = data.positions || [];
+        parsedEntries = data.entries || [];
         renderPreview();
-        showToast(`${parsedPositions.length}件のポジションを抽出しました`);
+        showToast(`${data.entryCount || parsedEntries.length}社・${data.positionCount || flatPositions().length}ポジションを抽出`);
       } catch (e) {
         showToast(e.message);
       } finally {
@@ -181,18 +196,30 @@ const Pages = {
       }
     };
     saveBtn.onclick = async () => {
-      const checks = preview().querySelectorAll(".bulk-pos-check:checked");
-      const indices = [...checks].map((cb) => Number(cb.dataset.idx));
-      if (!indices.length) return;
+      const checks = [...preview().querySelectorAll(".bulk-pos-check:checked")];
+      if (!checks.length) return;
       saveBtn.disabled = true;
+      const companyCache = {};
       let ok = 0;
       try {
-        for (const i of indices) {
-          await API.createCompany(parsedPositions[i]);
+        for (const cb of checks) {
+          const ei = Number(cb.dataset.ei);
+          const pi = Number(cb.dataset.pi);
+          const entry = parsedEntries[ei];
+          const pos = entry?.positions?.[pi];
+          if (!entry || !pos) continue;
+          if (!companyCache[entry.company.name]) {
+            companyCache[entry.company.name] = await findOrCreateCompany(entry.company);
+          }
+          await API.createJobPosting({
+            client_company_id: companyCache[entry.company.name],
+            title: pos.title,
+            job_posting: pos.job_posting,
+          });
           ok++;
         }
         closeModal();
-        showToast(`${ok}件を登録しました`);
+        showToast(`${ok}件のポジションを登録しました`);
         reload("");
       } catch (e) {
         showToast(e.message);
@@ -206,6 +233,7 @@ const Pages = {
     if (id) {
       const res = await API.company(id);
       c = res.company;
+      delete c.postings;
     }
     openModal(id ? "採用企業を編集" : "採用企業を登録", Pages.companyFormFields(c), `
       <button class="btn" id="modal-cancel">キャンセル</button>
@@ -241,15 +269,27 @@ const Pages = {
 
   async showCompanyDetail(id) {
     const [{ company }, { memos }] = await Promise.all([API.company(id), API.memos(id)]);
+    const postings = company.postings || [];
     openModal(company.name, `
-      <div class="detail-section"><h3>基本情報</h3>
-        <p><strong>募集要項</strong></p><p>${escapeHtml(company.job_posting || "—")}</p>
-        <p style="margin-top:10px"><strong>企業文化</strong></p><p>${escapeHtml(company.company_culture || "—")}</p>
+      <div class="detail-section"><h3>企業マスタ</h3>
+        <p><strong>企業文化</strong></p><p>${escapeHtml(company.company_culture || "—")}</p>
+        <p style="margin-top:10px"><strong>内部メモ</strong></p><p>${escapeHtml(company.internal_notes || "—")}</p>
       </div>
       <div class="detail-section"><h3>担当者</h3>
         <p>人事: ${escapeHtml(company.hr_name || "—")} / ${escapeHtml(company.hr_phone || "")} / ${escapeHtml(company.hr_email || "")}</p>
         <p>部署責任者: ${escapeHtml(company.dept_manager_name || "—")}</p>
         <p>窓口: ${escapeHtml(company.window_contact_name || "—")}</p>
+      </div>
+      <div class="detail-section">
+        <div class="card-header"><h3>募集ポジション</h3>
+          <button class="btn btn-sm btn-primary" id="btn-add-posting">＋ ポジション追加</button></div>
+        ${postings.length ? `<table class="data-table"><thead><tr><th>ポジション</th><th>状態</th><th></th></tr></thead><tbody>
+          ${postings.map((p) => `<tr>
+            <td><a href="#" class="link" data-posting-id="${p.id}">${escapeHtml(p.title)}</a></td>
+            <td>${escapeHtml(p.status || "active")}</td>
+            <td><button class="btn btn-sm" data-edit-posting="${p.id}">編集</button></td>
+          </tr>`).join("")}
+        </tbody></table>` : `<div class="empty-state">募集ポジションがありません</div>`}
       </div>
       <div class="detail-section">
         <div class="card-header"><h3>企業メモ</h3><button class="btn btn-sm btn-primary" id="btn-add-memo">＋ メモ追加</button></div>
@@ -263,10 +303,24 @@ const Pages = {
           </div>`).join("") || `<div class="empty-state">メモがありません</div>`}
         </div>
       </div>
-    `, `<button class="btn btn-primary" id="edit-company-btn">編集</button><button class="btn" id="modal-close2">閉じる</button>`);
+    `, `<button class="btn btn-primary" id="edit-company-btn">企業を編集</button><button class="btn" id="modal-close2">閉じる</button>`);
     document.getElementById("modal-close2").onclick = closeModal;
     document.getElementById("edit-company-btn").onclick = () => { closeModal(); Pages.showCompanyForm(id); };
+    document.getElementById("btn-add-posting").onclick = () => { closeModal(); Pages.showPostingForm(id); };
     document.getElementById("btn-add-memo").onclick = () => Pages.showMemoForm(id);
+    document.querySelectorAll("[data-posting-id]").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeModal();
+        Pages.showPostingDetail(id, a.dataset.postingId);
+      });
+    });
+    document.querySelectorAll("[data-edit-posting]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        closeModal();
+        Pages.showPostingForm(id, btn.dataset.editPosting);
+      });
+    });
     document.querySelectorAll("[data-delete-memo]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         if (!confirm("このメモを削除しますか？")) return;
@@ -278,6 +332,71 @@ const Pages = {
         } catch (e) { showToast(e.message); }
       });
     });
+  },
+
+  async showPostingForm(companyId, postingId) {
+    let p = { title: "", job_posting: "", status: "active" };
+    if (postingId) {
+      p = (await API.jobPosting(postingId)).posting;
+    }
+    openModal(postingId ? "募集ポジションを編集" : "募集ポジションを追加", `
+      <div class="form-grid">
+        <div class="form-group full"><label>ポジション名 *</label><input name="title" value="${escapeHtml(p.title || "")}" required /></div>
+        <div class="form-group full"><label>採用募集要項</label><textarea name="job_posting">${escapeHtml(p.job_posting || "")}</textarea></div>
+        <div class="form-group"><label>状態</label>
+          <select name="status">
+            <option value="active" ${p.status === "active" ? "selected" : ""}>active</option>
+            <option value="draft" ${p.status === "draft" ? "selected" : ""}>draft</option>
+            <option value="closed" ${p.status === "closed" ? "selected" : ""}>closed</option>
+          </select>
+        </div>
+      </div>
+    `, `
+      ${postingId ? `<button class="btn btn-danger" id="del-posting">削除</button>` : ""}
+      <button class="btn" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" id="save-posting">保存</button>
+    `);
+    if (postingId) {
+      document.getElementById("del-posting").onclick = async () => {
+        if (!confirm("この募集ポジションを削除しますか？")) return;
+        try {
+          await API.deleteJobPosting(postingId);
+          closeModal();
+          showToast("削除しました");
+          Pages.showCompanyDetail(companyId);
+        } catch (e) { showToast(e.message); }
+      };
+    }
+    document.getElementById("save-posting").onclick = async () => {
+      const form = document.getElementById("modal-body");
+      const body = {
+        title: form.querySelector("[name=title]").value,
+        job_posting: form.querySelector("[name=job_posting]").value,
+        status: form.querySelector("[name=status]").value,
+      };
+      try {
+        if (postingId) await API.updateJobPosting(postingId, body);
+        else await API.createJobPosting({ ...body, client_company_id: companyId });
+        closeModal();
+        showToast("保存しました");
+        Pages.showCompanyDetail(companyId);
+      } catch (e) { showToast(e.message); }
+    };
+  },
+
+  async showPostingDetail(companyId, postingId) {
+    const { posting } = await API.jobPosting(postingId);
+    openModal(posting.title, `
+      <div class="detail-section">
+        <p><strong>状態</strong>: ${escapeHtml(posting.status || "active")}</p>
+        <p style="margin-top:12px"><strong>採用募集要項</strong></p>
+        <p style="white-space:pre-wrap">${escapeHtml(posting.job_posting || "—")}</p>
+      </div>
+    `, `<button class="btn btn-primary" id="edit-posting-btn">編集</button><button class="btn" onclick="closeModal()">閉じる</button>`);
+    document.getElementById("edit-posting-btn").onclick = () => {
+      closeModal();
+      Pages.showPostingForm(companyId, postingId);
+    };
   },
 
   showMemoForm(companyId) {
