@@ -85,12 +85,89 @@ const Pages = {
     document.getElementById("btn-bulk-company").addEventListener("click", () => Pages.showCompanyBulkImport(load));
   },
 
+  companyContactImportSection() {
+    return `
+      <div class="contact-import-box">
+        <label style="font-weight:700;color:var(--dulton-navy)">担当者情報の取り込み</label>
+        <p style="color:var(--gray-dark);font-size:12px;margin:6px 0 10px;line-height:1.5">
+          名刺写真またはメール署名を貼り付け/アップロードすると、AI が<strong>人事・採用部署・窓口</strong>に自動振分けして下の欄へ反映します。
+        </p>
+        <div class="form-group full"><label>メール署名・担当者テキスト</label>
+          <textarea id="contact-import-text" rows="3" placeholder="メール署名をコピペ"></textarea>
+        </div>
+        <div class="form-group full"><label>名刺写真</label>
+          <input type="file" id="contact-import-file" accept="image/jpeg,image/png,image/webp,image/gif" />
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" id="contact-import-btn">AIで反映</button>
+        <div id="contact-import-status" class="contact-import-status"></div>
+      </div>`;
+  },
+
+  applyContactsToForm(formRoot, contacts) {
+    const fields = [
+      "hr_name", "hr_phone", "hr_email",
+      "dept_manager_name", "dept_manager_phone", "dept_manager_email",
+      "window_contact_name", "window_contact_phone", "window_contact_email",
+    ];
+    fields.forEach((f) => {
+      if (contacts[f]) {
+        const el = formRoot.querySelector(`[name="${f}"]`);
+        if (el) el.value = contacts[f];
+      }
+    });
+  },
+
+  wireCompanyContactImport(formRoot) {
+    const btn = formRoot.querySelector("#contact-import-btn");
+    const statusEl = formRoot.querySelector("#contact-import-status");
+    if (!btn) return;
+
+    btn.onclick = async () => {
+      const text = formRoot.querySelector("#contact-import-text")?.value?.trim() || "";
+      const fileInput = formRoot.querySelector("#contact-import-file");
+      const file = fileInput?.files?.[0];
+      if (!text && !file) {
+        showToast("署名テキストまたは名刺画像を指定してください");
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "解析中…";
+      if (statusEl) statusEl.textContent = "";
+      try {
+        let data;
+        if (file) {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(",")[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          data = await API.parseCompanyContacts({ imageBase64: base64, mimeType: file.type || "image/jpeg" });
+        } else {
+          data = await API.parseCompanyContacts({ content: text });
+        }
+        Pages.applyContactsToForm(formRoot, data.contacts || {});
+        if (statusEl) {
+          statusEl.textContent = data.summary ? `✓ ${data.summary}` : "✓ 担当者情報を反映しました（保存ボタンで確定）";
+        }
+        showToast("担当者情報を反映しました");
+      } catch (e) {
+        if (statusEl) statusEl.textContent = "";
+        showToast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "AIで反映";
+      }
+    };
+  },
+
   companyFormFields(c = {}) {
     return `
       <div class="form-grid">
         <div class="form-group full"><label>企業名 *</label><input name="name" value="${escapeHtml(c.name || "")}" required /></div>
         <div class="form-group full"><label>企業文化（非公開）</label><textarea name="company_culture">${escapeHtml(c.company_culture || "")}</textarea></div>
         <div class="form-group full"><label>内部メモ（非公開）</label><textarea name="internal_notes">${escapeHtml(c.internal_notes || "")}</textarea></div>
+        <div class="form-group full">${Pages.companyContactImportSection()}</div>
         <div class="form-group"><label>人事担当者</label><input name="hr_name" value="${escapeHtml(c.hr_name || "")}" /></div>
         <div class="form-group"><label>人事 TEL</label><input name="hr_phone" value="${escapeHtml(c.hr_phone || "")}" /></div>
         <div class="form-group"><label>人事 メール</label><input name="hr_email" type="email" value="${escapeHtml(c.hr_email || "")}" /></div>
@@ -240,6 +317,7 @@ const Pages = {
       ${id ? `<button class="btn btn-danger" id="modal-delete-company">削除</button>` : ""}
       <button class="btn btn-primary" id="modal-save">保存</button>
     `);
+    Pages.wireCompanyContactImport(document.getElementById("modal-body"));
     document.getElementById("modal-cancel").onclick = closeModal;
     if (id) {
       document.getElementById("modal-delete-company").onclick = async () => {

@@ -561,6 +561,20 @@ textarea:focus {
   white-space: pre-wrap;
 }
 
+.contact-import-box {
+  border: 1px solid var(--border);
+  background: var(--surface-blue);
+  padding: 14px;
+  border-radius: 4px;
+}
+
+.contact-import-status {
+  font-size: 12px;
+  color: var(--dulton-navy);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
 /* 組織管理ページ */
 .org-page { padding: 0; overflow: hidden; }
 
