@@ -335,11 +335,12 @@ const Pages = {
   },
 
   async showPostingForm(companyId, postingId) {
-    let p = { title: "", job_posting: "", status: "active" };
-    if (postingId) {
-      p = (await API.jobPosting(postingId)).posting;
+    if (!postingId) {
+      Pages.showPostingPasteForm(companyId);
+      return;
     }
-    openModal(postingId ? "募集ポジションを編集" : "募集ポジションを追加", `
+    const p = (await API.jobPosting(postingId)).posting;
+    openModal("募集ポジションを編集", `
       <div class="form-grid">
         <div class="form-group full"><label>ポジション名 *</label><input name="title" value="${escapeHtml(p.title || "")}" required /></div>
         <div class="form-group full"><label>採用募集要項</label><textarea name="job_posting">${escapeHtml(p.job_posting || "")}</textarea></div>
@@ -352,21 +353,19 @@ const Pages = {
         </div>
       </div>
     `, `
-      ${postingId ? `<button class="btn btn-danger" id="del-posting">削除</button>` : ""}
+      <button class="btn btn-danger" id="del-posting">削除</button>
       <button class="btn" onclick="closeModal()">キャンセル</button>
       <button class="btn btn-primary" id="save-posting">保存</button>
     `);
-    if (postingId) {
-      document.getElementById("del-posting").onclick = async () => {
-        if (!confirm("この募集ポジションを削除しますか？")) return;
-        try {
-          await API.deleteJobPosting(postingId);
-          closeModal();
-          showToast("削除しました");
-          Pages.showCompanyDetail(companyId);
-        } catch (e) { showToast(e.message); }
-      };
-    }
+    document.getElementById("del-posting").onclick = async () => {
+      if (!confirm("この募集ポジションを削除しますか？")) return;
+      try {
+        await API.deleteJobPosting(postingId);
+        closeModal();
+        showToast("削除しました");
+        Pages.showCompanyDetail(companyId);
+      } catch (e) { showToast(e.message); }
+    };
     document.getElementById("save-posting").onclick = async () => {
       const form = document.getElementById("modal-body");
       const body = {
@@ -375,8 +374,160 @@ const Pages = {
         status: form.querySelector("[name=status]").value,
       };
       try {
-        if (postingId) await API.updateJobPosting(postingId, body);
-        else await API.createJobPosting({ ...body, client_company_id: companyId });
+        await API.updateJobPosting(postingId, body);
+        closeModal();
+        showToast("保存しました");
+        Pages.showCompanyDetail(companyId);
+      } catch (e) { showToast(e.message); }
+    };
+  },
+
+  showPostingPasteForm(companyId) {
+    let parsedFlat = [];
+    openModal("募集ポジションを追加", `
+      <p style="color:var(--gray-dark);font-size:13px;margin-bottom:12px;line-height:1.6">
+        採用募集要項を貼り付けると、AI がポジション名・要項を抽出して登録します。
+      </p>
+      <div class="form-group full">
+        <label>採用募集要項</label>
+        <textarea id="posting-source" rows="10" placeholder="求人票・募集要項・メール本文など"></textarea>
+      </div>
+      <button type="button" class="btn btn-primary" id="posting-parse">AIで解析して登録</button>
+      <div id="posting-preview" style="margin-top:16px"></div>
+    `, `
+      <button class="btn" onclick="closeModal()">キャンセル</button>
+      <button class="btn" id="posting-manual">手入力</button>
+      <button class="btn btn-primary" id="posting-save" disabled>0件を登録</button>
+    `);
+
+    const preview = () => document.getElementById("posting-preview");
+    const saveBtn = document.getElementById("posting-save");
+
+    function flatFromEntries(entries) {
+      const rows = [];
+      (entries || []).forEach((entry, ei) => {
+        (entry.positions || []).forEach((pos, pi) => rows.push({ ei, pi, pos }));
+      });
+      return rows;
+    }
+
+    function updateSaveLabel() {
+      const n = preview().querySelectorAll(".posting-pos-check:checked").length;
+      saveBtn.disabled = n === 0;
+      saveBtn.textContent = `${n}件を登録`;
+    }
+
+    function renderPreview(flat) {
+      parsedFlat = flat;
+      if (!flat.length) {
+        preview().innerHTML = "";
+        saveBtn.disabled = true;
+        saveBtn.textContent = "0件を登録";
+        return;
+      }
+      preview().innerHTML = `
+        <h3 style="font-size:13px;color:var(--dulton-navy);margin-bottom:8px">解析結果: ${flat.length}ポジション</h3>
+        ${flat.map((row, i) => `
+          <div class="bulk-position-item" style="margin-bottom:8px">
+            <label><input type="checkbox" class="posting-pos-check" data-idx="${i}" checked />
+              ${escapeHtml(row.pos.title)}</label>
+            <p class="bulk-position-snippet">${escapeHtml((row.pos.job_posting || "—").slice(0, 100))}${(row.pos.job_posting || "").length > 100 ? "…" : ""}</p>
+          </div>`).join("")}`;
+      preview().querySelectorAll(".posting-pos-check").forEach((cb) => {
+        cb.addEventListener("change", updateSaveLabel);
+      });
+      updateSaveLabel();
+    }
+
+    async function registerPositions(indices) {
+      saveBtn.disabled = true;
+      let ok = 0;
+      try {
+        for (const i of indices) {
+          const row = parsedFlat[i];
+          if (!row?.pos) continue;
+          await API.createJobPosting({
+            client_company_id: companyId,
+            title: row.pos.title,
+            job_posting: row.pos.job_posting,
+          });
+          ok++;
+        }
+        closeModal();
+        showToast(`${ok}件のポジションを登録しました`);
+        Pages.showCompanyDetail(companyId);
+      } catch (e) {
+        showToast(e.message);
+        saveBtn.disabled = false;
+      }
+    }
+
+    document.getElementById("posting-manual").onclick = () => {
+      closeModal();
+      Pages.showPostingManualForm(companyId);
+    };
+
+    document.getElementById("posting-parse").onclick = async () => {
+      const content = document.getElementById("posting-source").value.trim();
+      if (!content) { showToast("テキストを貼り付けてください"); return; }
+      const btn = document.getElementById("posting-parse");
+      btn.disabled = true;
+      btn.textContent = "解析中…";
+      try {
+        const data = await API.parseCompanyText(content);
+        const flat = flatFromEntries(data.entries);
+        if (!flat.length) {
+          showToast("ポジションを抽出できませんでした");
+          return;
+        }
+        if (flat.length === 1) {
+          await registerPositions([0]);
+          return;
+        }
+        renderPreview(flat);
+        showToast(`${flat.length}ポジションを抽出しました`);
+      } catch (e) {
+        showToast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "AIで解析して登録";
+      }
+    };
+
+    saveBtn.onclick = async () => {
+      const indices = [...preview().querySelectorAll(".posting-pos-check:checked")].map((cb) => Number(cb.dataset.idx));
+      if (!indices.length) return;
+      await registerPositions(indices);
+    };
+  },
+
+  showPostingManualForm(companyId) {
+    openModal("募集ポジションを追加（手入力）", `
+      <div class="form-grid">
+        <div class="form-group full"><label>ポジション名 *</label><input name="title" required /></div>
+        <div class="form-group full"><label>採用募集要項</label><textarea name="job_posting"></textarea></div>
+        <div class="form-group"><label>状態</label>
+          <select name="status">
+            <option value="active" selected>active</option>
+            <option value="draft">draft</option>
+            <option value="closed">closed</option>
+          </select>
+        </div>
+      </div>
+    `, `
+      <button class="btn" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" id="save-posting">保存</button>
+    `);
+    document.getElementById("save-posting").onclick = async () => {
+      const form = document.getElementById("modal-body");
+      const body = {
+        title: form.querySelector("[name=title]").value,
+        job_posting: form.querySelector("[name=job_posting]").value,
+        status: form.querySelector("[name=status]").value,
+      };
+      if (!body.title.trim()) { showToast("ポジション名を入力してください"); return; }
+      try {
+        await API.createJobPosting({ ...body, client_company_id: companyId });
         closeModal();
         showToast("保存しました");
         Pages.showCompanyDetail(companyId);
