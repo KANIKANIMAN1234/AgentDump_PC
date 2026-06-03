@@ -685,9 +685,78 @@ const Pages = {
     document.getElementById("btn-new-seeker").addEventListener("click", () => Pages.showSeekerForm(null));
   },
 
+  seekerImportSection() {
+    return `
+      <div class="contact-import-box">
+        <label style="font-weight:700;color:var(--dulton-navy)">転職者情報の取り込み</label>
+        <p style="color:var(--gray-dark);font-size:12px;margin:6px 0 10px;line-height:1.5">
+          職務経歴書要約・面談メモ・エージェント共有シート等を貼り付けると、AI が各項目へ自動反映します。
+        </p>
+        <div class="form-group full"><label>転職者情報テキスト</label>
+          <textarea id="seeker-import-text" rows="5" placeholder="氏名・年齢・年収・現職・希望条件など"></textarea>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" id="seeker-import-btn">AIで反映</button>
+        <div id="seeker-import-status" class="contact-import-status"></div>
+      </div>`;
+  },
+
+  applySeekerToForm(formRoot, seeker) {
+    const textFields = [
+      "name", "current_company", "desired_timing", "desired_job_type", "notes",
+    ];
+    textFields.forEach((f) => {
+      if (seeker[f]) {
+        const el = formRoot.querySelector(`[name="${f}"]`);
+        if (el) el.value = seeker[f];
+      }
+    });
+    ["age", "current_salary_man", "desired_salary_man"].forEach((f) => {
+      if (seeker[f] != null && seeker[f] !== "") {
+        const el = formRoot.querySelector(`[name="${f}"]`);
+        if (el) el.value = seeker[f];
+      }
+    });
+    if (seeker.employment_status) {
+      const sel = formRoot.querySelector('[name="employment_status"]');
+      if (sel) sel.value = seeker.employment_status;
+    }
+  },
+
+  wireSeekerImport(formRoot) {
+    const btn = formRoot.querySelector("#seeker-import-btn");
+    const statusEl = formRoot.querySelector("#seeker-import-status");
+    if (!btn) return;
+
+    btn.onclick = async () => {
+      const text = formRoot.querySelector("#seeker-import-text")?.value?.trim() || "";
+      if (!text) {
+        showToast("転職者情報テキストを貼り付けてください");
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "解析中…";
+      if (statusEl) statusEl.textContent = "";
+      try {
+        const data = await API.parseJobSeekerText(text);
+        Pages.applySeekerToForm(formRoot, data.jobSeeker || {});
+        if (statusEl) {
+          statusEl.textContent = data.summary ? `✓ ${data.summary}` : "✓ 転職者情報を反映しました（保存ボタンで確定）";
+        }
+        showToast("転職者情報を反映しました");
+      } catch (e) {
+        if (statusEl) statusEl.textContent = "";
+        showToast(e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "AIで反映";
+      }
+    };
+  },
+
   seekerFormFields(j = {}) {
     return `
       <div class="form-grid">
+        <div class="form-group full">${Pages.seekerImportSection()}</div>
         <div class="form-group"><label>氏名 *</label><input name="name" value="${escapeHtml(j.name || "")}" required /></div>
         <div class="form-group"><label>年齢</label><input name="age" type="number" value="${j.age ?? ""}" /></div>
         <div class="form-group"><label>現年収（万円）</label><input name="current_salary_man" type="number" value="${j.current_salary_man ?? ""}" /></div>
@@ -721,6 +790,7 @@ const Pages = {
       ${id ? `<button class="btn btn-danger" id="modal-delete">削除</button>` : ""}
       <button class="btn btn-primary" id="modal-save">保存</button>
     `);
+    Pages.wireSeekerImport(document.getElementById("modal-body"));
     document.getElementById("modal-cancel").onclick = closeModal;
     if (id) {
       document.getElementById("modal-delete").onclick = async () => {

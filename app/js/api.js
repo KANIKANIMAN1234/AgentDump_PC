@@ -48,6 +48,7 @@ const API = {
   createCompany(body) { return this.post("/api/client-companies", body); },
   parseCompanyText(content) { return this.post("/api/parse-company", { content }); },
   parseCompanyContacts(body) { return this.post("/api/parse-company-contacts", body); },
+  parseJobSeekerText(content) { return this.post("/api/parse-job-seeker", { content }); },
   jobPostings(companyId) { return this.get(`/api/job-postings?client_company_id=${companyId}`); },
   jobPosting(id) { return this.get(`/api/job-postings?id=${id}`); },
   createJobPosting(body) { return this.post("/api/job-postings", body); },
