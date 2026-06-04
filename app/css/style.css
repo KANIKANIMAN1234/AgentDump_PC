@@ -575,6 +575,51 @@ textarea:focus {
   line-height: 1.5;
 }
 
+.field-with-mic {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.field-with-mic input,
+.field-with-mic textarea {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-mic-btn {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--gray-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.field-mic-btn:hover {
+  border-color: var(--dulton-navy);
+  color: var(--dulton-navy);
+}
+
+.field-mic-btn.recording {
+  background: var(--dulton-red);
+  border-color: var(--dulton-red);
+  color: var(--white);
+}
+
+.field-mic-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 /* 組織管理ページ */
 .org-page { padding: 0; overflow: hidden; }
 

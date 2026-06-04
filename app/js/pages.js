@@ -690,10 +690,10 @@ const Pages = {
       <div class="contact-import-box">
         <label style="font-weight:700;color:var(--dulton-navy)">転職者情報の取り込み</label>
         <p style="color:var(--gray-dark);font-size:12px;margin:6px 0 10px;line-height:1.5">
-          職務経歴書要約・面談メモ・エージェント共有シート等を貼り付けると、AI が各項目へ自動反映します。
+          職務経歴書要約・面談メモ等を貼り付けるか、🎤 で音声入力すると、AI が各項目へ自動反映します。
         </p>
         <div class="form-group full"><label>転職者情報テキスト</label>
-          <textarea id="seeker-import-text" rows="5" placeholder="氏名・年齢・年収・現職・希望条件など"></textarea>
+          <textarea id="seeker-import-text" rows="5" placeholder="氏名・年齢・年収・現職・希望条件など（右の🎤で音声入力可）"></textarea>
         </div>
         <button type="button" class="btn btn-sm btn-primary" id="seeker-import-btn">AIで反映</button>
         <div id="seeker-import-status" class="contact-import-status"></div>
@@ -791,6 +791,7 @@ const Pages = {
       <button class="btn btn-primary" id="modal-save">保存</button>
     `);
     Pages.wireSeekerImport(document.getElementById("modal-body"));
+    VoiceInput.wireSeekerForm(document.getElementById("modal-body"), (blob) => API.transcribe(blob));
     document.getElementById("modal-cancel").onclick = closeModal;
     if (id) {
       document.getElementById("modal-delete").onclick = async () => {
