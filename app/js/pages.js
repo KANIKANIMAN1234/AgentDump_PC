@@ -38,12 +38,9 @@ function downloadInsightsCsv(insights) {
 
 const Pages = {
   async dashboard(container) {
-    const [data, companiesRes] = await Promise.all([
-      API.dashboard().catch(() => ({ tasks: [], jobSeekers: [] })),
-      Auth.isOrgMember() ? API.companies().catch(() => ({ companies: [] })) : Promise.resolve({ companies: [] }),
-    ]);
+    const data = await API.dashboard().catch(() => ({ tasks: [], jobSeekers: [], companies: [] }));
     const tasks = data.tasks || [];
-    const companies = companiesRes.companies || data.companies || [];
+    const companies = data.companies || [];
     const seekers = data.jobSeekers || [];
     const stats = UserPrefs.getDashboardStats();
     const statHtml = [
@@ -61,6 +58,7 @@ const Pages = {
       </div>
     `;
     container.querySelector("[data-goto=tasks]")?.addEventListener("click", () => App.navigate("tasks"));
+    return { tasks };
   },
 
   renderTaskTable(tasks, showActions = true) {
@@ -87,13 +85,16 @@ const Pages = {
       container.innerHTML = `<div class="card empty-state">採用企業管理は法人メンバー登録後に利用できます</div>`;
       return;
     }
+    const pending = UserPrefs.load().pendingCompanyFilters;
+    if (pending) UserPrefs.save({ pendingCompanyFilters: null });
+    const pf = pending || {};
     container.innerHTML = `
       <div class="toolbar company-search-toolbar">
-        <input type="text" id="company-search" placeholder="企業名" style="max-width:180px" />
-        <input type="text" id="company-area" placeholder="採用エリア" style="max-width:140px" />
-        <input type="text" id="company-salary" placeholder="募集年収幅" style="max-width:140px" />
-        <input type="text" id="company-job-type" placeholder="職種" style="max-width:120px" />
-        <input type="text" id="company-keyword" placeholder="キーワード" style="max-width:140px" />
+        <input type="text" id="company-search" placeholder="企業名" style="max-width:180px" value="${escapeHtml(pf.q || "")}" />
+        <input type="text" id="company-area" placeholder="採用エリア" style="max-width:140px" value="${escapeHtml(pf.area || "")}" />
+        <input type="text" id="company-salary" placeholder="募集年収幅" style="max-width:140px" value="${escapeHtml(pf.salary || "")}" />
+        <input type="text" id="company-job-type" placeholder="職種" style="max-width:120px" value="${escapeHtml(pf.job_type || "")}" />
+        <input type="text" id="company-keyword" placeholder="キーワード" style="max-width:140px" value="${escapeHtml(pf.keyword || "")}" />
         <button class="btn" id="btn-save-company-preset" title="現在の検索条件を保存">💾 条件保存</button>
         <button class="btn btn-primary" id="btn-new-company">＋ 新規登録</button>
         <button class="btn" id="btn-bulk-company">📋 テキストから一括登録</button>
@@ -131,18 +132,9 @@ const Pages = {
       });
     };
     await load();
-    const pending = UserPrefs.load().pendingCompanyFilters;
-    if (pending) {
-      const map = { q: "company-search", area: "company-area", salary: "company-salary", job_type: "company-job-type", keyword: "company-keyword" };
-      Object.entries(map).forEach(([k, id]) => {
-        const el = document.getElementById(id);
-        if (el && pending[k]) el.value = pending[k];
-      });
-      UserPrefs.save({ pendingCompanyFilters: null });
-      await load();
-    }
+    const debouncedLoad = debounce(load, 300);
     ["company-search", "company-area", "company-salary", "company-job-type", "company-keyword"].forEach((id) => {
-      document.getElementById(id).addEventListener("input", () => load());
+      document.getElementById(id).addEventListener("input", debouncedLoad);
     });
     document.getElementById("btn-save-company-preset").addEventListener("click", () => {
       const name = prompt("プリセット名を入力してください");
@@ -920,16 +912,12 @@ const Pages = {
   },
 
   async tasks(container) {
-    let companies = [];
-    let seekers = [];
-    if (Auth.isOrgMember()) {
-      try {
-        companies = (await API.companies()).companies || [];
-      } catch (_) {}
-    }
-    try {
-      seekers = (await API.jobSeekers()).jobSeekers || [];
-    } catch (_) {}
+    const [companiesRes, seekersRes] = await Promise.all([
+      Auth.isOrgMember() ? API.companies().catch(() => ({ companies: [] })) : Promise.resolve({ companies: [] }),
+      API.jobSeekers().catch(() => ({ jobSeekers: [] })),
+    ]);
+    const companies = companiesRes.companies || [];
+    const seekers = seekersRes.jobSeekers || [];
 
     container.innerHTML = `
       <div class="toolbar">

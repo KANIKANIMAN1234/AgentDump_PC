@@ -82,27 +82,19 @@ const MyPage = {
     let dash = { tasks: [], jobSeekers: [], companies: [] };
     let insightCount = 0;
     let activity = [];
-
-    if (isMember) {
-      try {
-        dash = await API.dashboard();
-      } catch (_) {}
-      try {
-        const ins = await API.insights();
-        insightCount = (ins.insights || []).length;
-      } catch (_) {}
-    }
-    if (isAdmin) {
-      try {
-        activity = (await API.orgActivityLog()).events || [];
-      } catch (_) {}
-    }
-
     let serverPrefs = null;
-    if (isMember) {
-      try {
-        serverPrefs = (await API.memberPreferences()).preferences;
-      } catch (_) {}
+
+    if (isMember || isAdmin) {
+      const [dashRes, insRes, activityRes, prefsRes] = await Promise.all([
+        isMember ? API.dashboard().catch(() => ({})) : Promise.resolve({}),
+        isMember ? API.insightCount().catch(() => ({ count: 0 })) : Promise.resolve({ count: 0 }),
+        isAdmin ? API.orgActivityLog().catch(() => ({ events: [] })) : Promise.resolve({ events: [] }),
+        isMember ? API.memberPreferences().catch(() => null) : Promise.resolve(null),
+      ]);
+      dash = dashRes || dash;
+      insightCount = insRes?.count || 0;
+      activity = activityRes?.events || [];
+      serverPrefs = prefsRes?.preferences ?? null;
     }
 
     const companies = dash.companies || [];
@@ -373,15 +365,17 @@ const MyPage = {
     return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(base);
   },
 
-  async checkNotifications() {
+  async checkNotifications(prefetchedTasks) {
     const notif = UserPrefs.getNotifications();
     if (!notif.browserEnabled || !("Notification" in window) || Notification.permission !== "granted") return;
 
-    let tasks = [];
-    try {
-      tasks = (await API.tasks()).tasks || [];
-    } catch (_) {
-      return;
+    let tasks = prefetchedTasks;
+    if (!tasks) {
+      try {
+        tasks = (await API.tasks()).tasks || [];
+      } catch (_) {
+        return;
+      }
     }
 
     const todayStr = this.dateInTokyo(0);

@@ -2,9 +2,17 @@ const Auth = {
   liffId: "",
 
   async init() {
-    const cfg = await API.loadConfig();
     API.base = window.location.origin;
-    this.liffId = cfg.liffId || new URLSearchParams(location.search).get("liffId") || "";
+    const urlLiff = new URLSearchParams(location.search).get("liffId");
+    const cachedLiff = sessionStorage.getItem("agentdump_liff_id");
+    if (urlLiff) {
+      this.liffId = urlLiff;
+    } else if (cachedLiff) {
+      this.liffId = cachedLiff;
+    } else {
+      const cfg = await API.loadConfig();
+      this.liffId = cfg.liffId || "";
+    }
 
     if (!this.liffId) {
       throw new Error("LIFF_ID が未設定です。Vercel 環境変数または URL パラメータ ?liffId= を指定してください");
@@ -63,6 +71,14 @@ const Auth = {
     return API.me?.member?.role === "org_admin";
   },
 };
+
+function debounce(fn, ms = 300) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
 
 function escapeHtml(s) {
   return String(s ?? "")

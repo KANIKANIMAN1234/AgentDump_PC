@@ -27,11 +27,11 @@ const App = {
       const hash = location.hash.replace("#", "") || "dashboard";
       const initial = hash in PAGE_TITLES ? hash : "dashboard";
       if (API.me?.needsOrgSetup) {
-        this.navigate("organization");
+        await this.navigate("organization");
       } else {
-        this.navigate(initial);
+        await this.navigate(initial);
+        if (initial !== "dashboard") MyPage.checkNotifications();
       }
-      MyPage.checkNotifications();
     } catch (e) {
       document.getElementById("loading-screen").innerHTML = `
         <p style="color:#dc2626;max-width:400px;text-align:center">${escapeHtml(e.message)}</p>
@@ -57,7 +57,10 @@ const App = {
       if (page === "chat") await ChatPage.render(container);
       else if (page === "job-seekers") await Pages.jobSeekers(container);
       else if (page === "organization") await Pages.organization(container);
-      else {
+      else if (page === "dashboard") {
+        const ret = await Pages.dashboard(container);
+        MyPage.checkNotifications(ret?.tasks);
+      } else {
         const fn = Pages[page.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] || Pages[page];
         if (fn) await fn(container);
         else container.innerHTML = `<div class="empty-state">ページが見つかりません</div>`;
