@@ -10,6 +10,62 @@ const MyPage = {
     return map[role] || role || "—";
   },
 
+  browserNotifStatusLabel() {
+    if (typeof Notification === "undefined") return "非対応（このブラウザでは使えません）";
+    if (this.isLineInAppBrowser()) return "非対応（LINEアプリ内ブラウザ）— PC の Chrome / Edge で開いてください";
+    const map = { granted: "許可済み", denied: "ブロック中", default: "未設定（ボタンで許可してください）" };
+    return map[Notification.permission] || Notification.permission;
+  },
+
+  isLineInAppBrowser() {
+    try {
+      return typeof liff !== "undefined" && liff.isInClient && liff.isInClient();
+    } catch {
+      return false;
+    }
+  },
+
+  async requestBrowserNotificationPermission() {
+    if (typeof Notification === "undefined") {
+      return { ok: false, message: "このブラウザは通知に対応していません" };
+    }
+    if (this.isLineInAppBrowser()) {
+      return {
+        ok: false,
+        message: "LINEアプリ内ではブラウザ通知を利用できません。PC の Chrome または Edge で同じ URL を開いて設定してください。",
+        long: true,
+      };
+    }
+    if (Notification.permission === "granted") {
+      try {
+        new Notification("AgentDump", { body: "ブラウザ通知は許可済みです" });
+      } catch (_) {}
+      return { ok: true, message: "通知は既に許可されています" };
+    }
+    if (Notification.permission === "denied") {
+      return {
+        ok: false,
+        message: "通知がブロックされています。アドレスバー左の「サイト情報」→「通知」→「許可」に変更後、ページを再読み込みしてください。",
+        long: true,
+      };
+    }
+    const perm = await Notification.requestPermission();
+    if (perm === "granted") {
+      try {
+        new Notification("AgentDump", { body: "ブラウザ通知が有効になりました" });
+      } catch (_) {}
+      return { ok: true, message: "通知が許可されました" };
+    }
+    if (perm === "denied") {
+      return {
+        ok: false,
+        message: "通知が拒否されました。アドレスバー左の「サイト情報」から通知を「許可」に変更してください。",
+        long: true,
+      };
+    }
+    return { ok: false, message: "通知ダイアログが閉じられました。もう一度ボタンを押して「許可」を選んでください。" };
+  },
+
   formatAt(iso) {
     if (!iso) return "—";
     const d = new Date(iso);
@@ -181,10 +237,15 @@ const MyPage = {
           </div>
           <div class="my-page-subsection">
             <h3>ブラウザ通知（アプリ起動中）</h3>
+            <p class="my-page-hint">Chrome / Edge などの通常ブラウザで AgentDump を開いているときのみ利用できます。</p>
+            <p class="my-page-hint" id="browser-notif-status">現在の状態: ${escapeHtml(this.browserNotifStatusLabel())}</p>
             <div class="my-page-toggles">
               <label><input type="checkbox" id="pref-notif-browser" ${notif.browserEnabled ? "checked" : ""} /> ブラウザ通知を有効化</label>
             </div>
             <button type="button" class="btn btn-sm" id="pref-notif-permission" style="margin-top:8px">ブラウザ通知の許可を確認</button>
+            <p class="my-page-hint" id="browser-notif-help" hidden>
+              ブロックを解除する手順（Chrome）: アドレスバー左の鍵アイコン →「サイトの設定」→「通知」→「許可」→ ページを更新（F5）
+            </p>
           </div>
         </section>
 
@@ -293,13 +354,18 @@ const MyPage = {
     });
 
     document.getElementById("pref-notif-permission")?.addEventListener("click", async () => {
-      if (!("Notification" in window)) {
-        showToast("このブラウザは通知に対応していません");
-        return;
-      }
-      const perm = await Notification.requestPermission();
-      showToast(perm === "granted" ? "通知が許可されました" : "通知が許可されませんでした");
+      const result = await this.requestBrowserNotificationPermission();
+      const statusEl = document.getElementById("browser-notif-status");
+      const helpEl = document.getElementById("browser-notif-help");
+      if (statusEl) statusEl.textContent = `現在の状態: ${this.browserNotifStatusLabel()}`;
+      if (helpEl) helpEl.hidden = Notification?.permission !== "denied";
+      showToast(result.message, result.long ? 9000 : 3000);
     });
+
+    const helpEl = document.getElementById("browser-notif-help");
+    if (helpEl && typeof Notification !== "undefined" && Notification.permission === "denied") {
+      helpEl.hidden = false;
+    }
   },
 
   dateInTokyo(addDays = 0) {
