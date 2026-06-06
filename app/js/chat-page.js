@@ -33,7 +33,6 @@ const ChatPage = {
             <button type="button" class="qa-btn" data-qa="list">📋 一覧</button>
             <button type="button" class="qa-btn" data-qa="complete">✅ 完了</button>
             <button type="button" class="qa-btn" data-qa="insight">💡 気づき</button>
-            <button type="button" class="qa-btn" data-qa="export">📤 出力</button>
             <button type="button" class="qa-btn" data-qa="priority">🔄 優先度</button>
             <button type="button" class="qa-btn" data-qa="due">📅 期日</button>
           </div>
@@ -564,17 +563,5 @@ const ChatPage = {
     this.root.querySelector('[data-qa="complete"]').addEventListener("click", () => this.startCompleteFlow());
     this.root.querySelector('[data-qa="priority"]').addEventListener("click", () => this.startUpdatePriorityFlow());
     this.root.querySelector('[data-qa="due"]').addEventListener("click", () => this.startUpdateDueFlow());
-    this.root.querySelector('[data-qa="export"]').addEventListener("click", async () => {
-      this.addMessage("気づきを Google Drive へ出力", "user");
-      const typing = this.addTyping();
-      try {
-        const res = await API.exportInsights();
-        typing.remove();
-        this.addMessage(res.message || `${res.count || 0}件を出力したよ📤`, "bot");
-      } catch (e) {
-        typing.remove();
-        this.addMessage(e.message, "bot");
-      }
-    });
   },
 };
