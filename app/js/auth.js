@@ -19,6 +19,7 @@ const Auth = {
 
     const token = liff.getAccessToken();
     API.setToken(token);
+    API.restoreSession();
 
     const invite = new URLSearchParams(location.search).get("invite");
     if (invite) {
@@ -33,6 +34,7 @@ const Auth = {
 
     const me = await API.authMe();
     API.me = me;
+    if (me.sessionToken) API.setSessionToken(me.sessionToken);
     this.renderUserInfo(me);
     if (typeof OrgAdmin !== "undefined") OrgAdmin.init(me);
     return true;

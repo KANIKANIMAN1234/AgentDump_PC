@@ -285,17 +285,12 @@ const OrgAdmin = (function () {
     try {
       const payload = collectSetupPayload();
       await API.orgSetup(payload);
-      const savedDepth = orgState.depth;
-      latestAuth = {
-        ...latestAuth,
-        needsOrgSetup: false,
-        organization: {
-          ...latestAuth.organization,
-          status: "active",
-          org_structure_depth: savedDepth,
-        },
-      };
+      const me = await API.authMe();
+      API.me = me;
+      if (me.sessionToken) API.setSessionToken(me.sessionToken);
+      latestAuth = me;
       updateNavVisibility(latestAuth);
+      const savedDepth = me.organization?.org_structure_depth ?? orgState.depth;
       if (savedDepth === 0) {
         showToast("代表者のみの組織として設定が完了しました");
         mount(`<div class="empty-state">0段組織の設定が完了しました。メンバー招待は不要です。</div>`);

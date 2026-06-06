@@ -1,13 +1,9 @@
 const Pages = {
   async dashboard(container) {
-    const [tasksRes, companiesRes, seekersRes] = await Promise.all([
-      API.tasks().catch(() => ({ tasks: [] })),
-      Auth.isOrgMember() ? API.companies().catch(() => ({ companies: [] })) : Promise.resolve({ companies: [] }),
-      API.jobSeekers().catch(() => ({ jobSeekers: [] })),
-    ]);
-    const tasks = tasksRes.tasks || [];
-    const companies = companiesRes.companies || [];
-    const seekers = seekersRes.jobSeekers || [];
+    const data = await API.dashboard().catch(() => ({ tasks: [], companies: [], jobSeekers: [] }));
+    const tasks = data.tasks || [];
+    const companies = data.companies || [];
+    const seekers = data.jobSeekers || [];
 
     container.innerHTML = `
       <div class="stats-grid">
