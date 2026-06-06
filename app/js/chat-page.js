@@ -436,7 +436,7 @@ const ChatPage = {
       try {
         const data = await API.completeTask(this.flowData.completeTaskId, text === "なし" ? null : text);
         typing.remove();
-        this.addMessage(`「${data.title}」を完了✅`, "bot");
+        this.addMessage(`「${data.task?.title || "タスク"}」を完了✅`, "bot");
       } catch (e) {
         typing.remove();
         this.addMessage(e.message, "bot");
