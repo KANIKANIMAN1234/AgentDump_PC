@@ -67,6 +67,20 @@ const ChatPage = {
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   },
 
+  formatMsgTime(iso) {
+    if (!iso) return this.nowStr();
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso.length >= 16 ? iso.slice(11, 16) : this.nowStr();
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  },
+
+  formatMsgDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  },
+
   scrollBottom() {
     const el = this.chatBody();
     if (el) el.scrollTop = el.scrollHeight;
@@ -86,7 +100,7 @@ const ChatPage = {
     bubble.textContent = text;
     const time = document.createElement("div");
     time.className = "msg-time";
-    time.textContent = createdAt ? createdAt.slice(11, 16) : this.nowStr();
+    time.textContent = this.formatMsgTime(createdAt);
     if (role === "user") { wrap.appendChild(time); wrap.appendChild(bubble); }
     else { wrap.appendChild(bubble); wrap.appendChild(time); }
     this.chatBody().appendChild(wrap);
@@ -237,7 +251,7 @@ const ChatPage = {
       }
       let lastDate = "";
       msgs.forEach((m) => {
-        const d = (m.created_at || "").slice(0, 10);
+        const d = this.formatMsgDate(m.created_at);
         if (d !== lastDate) {
           const sep = document.createElement("div");
           sep.className = "history-separator";
