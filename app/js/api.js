@@ -101,9 +101,16 @@ const API = {
   orgInvite(body) { return this.post("/api/org/invite", body); },
   orgMembers() { return this.get("/api/org/members"); },
   dashboard() { return this.cachedGet("/api/dashboard"); },
-  companies(q) {
-    const path = `/api/client-companies${q ? `?q=${encodeURIComponent(q)}` : ""}`;
-    return q ? this.get(path) : this.cachedGet(path);
+  companies(filters) {
+    const f = typeof filters === "string" ? { q: filters } : (filters || {});
+    const params = new URLSearchParams();
+    ["q", "area", "salary", "job_type", "keyword"].forEach((key) => {
+      const v = String(f[key] || "").trim();
+      if (v) params.set(key, v);
+    });
+    const qs = params.toString();
+    const path = `/api/client-companies${qs ? `?${qs}` : ""}`;
+    return qs ? this.get(path) : this.cachedGet(path);
   },
   company(id) { return this.get(`/api/client-companies?id=${id}`); },
   async createCompany(body) {

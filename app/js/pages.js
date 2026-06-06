@@ -1,3 +1,40 @@
+function formatInsightDateTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${day} ${h}:${mi}`;
+}
+
+function csvEscape(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function downloadInsightsCsv(insights) {
+  const header = "id,content,tags,created_at";
+  const lines = insights.map((r) => [
+    csvEscape(r.id),
+    csvEscape(r.content),
+    csvEscape(r.tags ?? ""),
+    csvEscape(r.created_at),
+  ].join(","));
+  const csv = `\uFEFF${[header, ...lines].join("\n")}`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  a.href = url;
+  a.download = `insights_${date}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 const Pages = {
   async dashboard(container) {
     const [data, companiesRes] = await Promise.all([
@@ -48,15 +85,26 @@ const Pages = {
       return;
     }
     container.innerHTML = `
-      <div class="toolbar">
-        <input type="text" id="company-search" placeholder="企業名で検索..." style="max-width:280px" />
+      <div class="toolbar company-search-toolbar">
+        <input type="text" id="company-search" placeholder="企業名" style="max-width:180px" />
+        <input type="text" id="company-area" placeholder="採用エリア" style="max-width:140px" />
+        <input type="text" id="company-salary" placeholder="募集年収幅" style="max-width:140px" />
+        <input type="text" id="company-job-type" placeholder="職種" style="max-width:120px" />
+        <input type="text" id="company-keyword" placeholder="キーワード" style="max-width:140px" />
         <button class="btn btn-primary" id="btn-new-company">＋ 新規登録</button>
         <button class="btn" id="btn-bulk-company">📋 テキストから一括登録</button>
       </div>
       <div class="card" id="companies-list"><div class="empty-state">読み込み中...</div></div>
     `;
-    const load = async (q) => {
-      const { companies } = await API.companies(q);
+    const getCompanyFilters = () => ({
+      q: document.getElementById("company-search")?.value.trim() || "",
+      area: document.getElementById("company-area")?.value.trim() || "",
+      salary: document.getElementById("company-salary")?.value.trim() || "",
+      job_type: document.getElementById("company-job-type")?.value.trim() || "",
+      keyword: document.getElementById("company-keyword")?.value.trim() || "",
+    });
+    const load = async () => {
+      const { companies } = await API.companies(getCompanyFilters());
       const list = document.getElementById("companies-list");
       if (!companies.length) {
         list.innerHTML = `<div class="empty-state">採用企業がありません</div>`;
@@ -78,8 +126,10 @@ const Pages = {
         b.addEventListener("click", () => Pages.showCompanyForm(b.dataset.editCompany));
       });
     };
-    await load("");
-    document.getElementById("company-search").addEventListener("input", (e) => load(e.target.value));
+    await load();
+    ["company-search", "company-area", "company-salary", "company-job-type", "company-keyword"].forEach((id) => {
+      document.getElementById(id).addEventListener("input", () => load());
+    });
     document.getElementById("btn-new-company").addEventListener("click", () => Pages.showCompanyForm(null));
     document.getElementById("btn-bulk-company").addEventListener("click", () => Pages.showCompanyBulkImport(load));
   },
@@ -999,7 +1049,7 @@ const Pages = {
     container.innerHTML = `
       <div class="toolbar">
         <button class="btn btn-primary" id="btn-new-insight">＋ 気づき追加</button>
-        <button class="btn" id="btn-export">📤 Google Drive へエクスポート</button>
+        <button class="btn" id="btn-export">📥 CSVダウンロード</button>
       </div>
       <div class="card" id="insights-list"><div class="empty-state">読み込み中...</div></div>
     `;
@@ -1012,7 +1062,7 @@ const Pages = {
       }
       list.innerHTML = insights.map((i) => `
         <div class="memo-item" style="margin-bottom:12px">
-          <div class="memo-meta">${(i.created_at || "").slice(0, 16).replace("T", " ")} ${i.exported_at ? "· エクスポート済" : ""}</div>
+          <div class="memo-meta">${formatInsightDateTime(i.created_at)}</div>
           <p>${escapeHtml(i.content)}</p>
           ${i.tags ? `<small style="color:var(--muted)">#${escapeHtml(i.tags)}</small>` : ""}
         </div>`).join("");
@@ -1037,9 +1087,13 @@ const Pages = {
     };
     document.getElementById("btn-export").onclick = async () => {
       try {
-        const res = await API.exportInsights();
-        showToast(res.message || `${res.count || 0}件をエクスポートしました`);
-        load();
+        const { insights } = await API.get("/api/insights?limit=500");
+        if (!insights?.length) {
+          showToast("ダウンロードする気づきがありません");
+          return;
+        }
+        downloadInsightsCsv(insights);
+        showToast(`${insights.length}件をCSVでダウンロードしました`);
       } catch (e) { showToast(e.message); }
     };
   },
