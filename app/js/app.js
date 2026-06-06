@@ -6,7 +6,7 @@ const PAGE_TITLES = {
   tasks: "タスク",
   insights: "気づき",
   organization: "組織",
-  settings: "設定",
+  "my-page": "マイページ",
 };
 
 const App = {
@@ -31,6 +31,7 @@ const App = {
       } else {
         this.navigate(initial);
       }
+      MyPage.checkNotifications();
     } catch (e) {
       document.getElementById("loading-screen").innerHTML = `
         <p style="color:#dc2626;max-width:400px;text-align:center">${escapeHtml(e.message)}</p>

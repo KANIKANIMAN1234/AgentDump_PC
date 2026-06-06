@@ -33,6 +33,7 @@ function downloadInsightsCsv(insights) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+  UserPrefs.addCsvExportHistory(insights.length);
 }
 
 const Pages = {
@@ -44,14 +45,16 @@ const Pages = {
     const tasks = data.tasks || [];
     const companies = companiesRes.companies || data.companies || [];
     const seekers = data.jobSeekers || [];
+    const stats = UserPrefs.getDashboardStats();
+    const statHtml = [
+      stats.tasks ? `<div class="stat-card"><div class="value">${tasks.length}</div><div class="label">未完了タスク</div></div>` : "",
+      stats.companies ? `<div class="stat-card"><div class="value">${companies.length}</div><div class="label">採用企業</div></div>` : "",
+      stats.seekers ? `<div class="stat-card"><div class="value">${seekers.length}</div><div class="label">転職者</div></div>` : "",
+      stats.highPriority ? `<div class="stat-card"><div class="value">${tasks.filter((t) => t.priority === "高").length}</div><div class="label">高優先度</div></div>` : "",
+    ].filter(Boolean).join("");
 
     container.innerHTML = `
-      <div class="stats-grid">
-        <div class="stat-card"><div class="value">${tasks.length}</div><div class="label">未完了タスク</div></div>
-        <div class="stat-card"><div class="value">${companies.length}</div><div class="label">採用企業</div></div>
-        <div class="stat-card"><div class="value">${seekers.length}</div><div class="label">転職者</div></div>
-        <div class="stat-card"><div class="value">${tasks.filter((t) => t.priority === "高").length}</div><div class="label">高優先度</div></div>
-      </div>
+      <div class="stats-grid">${statHtml || `<div class="empty-state">マイページで表示項目を選択できます</div>`}</div>
       <div class="card">
         <div class="card-header"><h2>直近タスク</h2><button class="btn btn-sm" data-goto="tasks">すべて見る</button></div>
         ${Pages.renderTaskTable(tasks.slice(0, 8), false)}
@@ -91,6 +94,7 @@ const Pages = {
         <input type="text" id="company-salary" placeholder="募集年収幅" style="max-width:140px" />
         <input type="text" id="company-job-type" placeholder="職種" style="max-width:120px" />
         <input type="text" id="company-keyword" placeholder="キーワード" style="max-width:140px" />
+        <button class="btn" id="btn-save-company-preset" title="現在の検索条件を保存">💾 条件保存</button>
         <button class="btn btn-primary" id="btn-new-company">＋ 新規登録</button>
         <button class="btn" id="btn-bulk-company">📋 テキストから一括登録</button>
       </div>
@@ -127,8 +131,24 @@ const Pages = {
       });
     };
     await load();
+    const pending = UserPrefs.load().pendingCompanyFilters;
+    if (pending) {
+      const map = { q: "company-search", area: "company-area", salary: "company-salary", job_type: "company-job-type", keyword: "company-keyword" };
+      Object.entries(map).forEach(([k, id]) => {
+        const el = document.getElementById(id);
+        if (el && pending[k]) el.value = pending[k];
+      });
+      UserPrefs.save({ pendingCompanyFilters: null });
+      await load();
+    }
     ["company-search", "company-area", "company-salary", "company-job-type", "company-keyword"].forEach((id) => {
       document.getElementById(id).addEventListener("input", () => load());
+    });
+    document.getElementById("btn-save-company-preset").addEventListener("click", () => {
+      const name = prompt("プリセット名を入力してください");
+      if (!name?.trim()) return;
+      UserPrefs.addCompanyPreset(name.trim(), getCompanyFilters());
+      showToast("検索条件を保存しました（マイページで管理）");
     });
     document.getElementById("btn-new-company").addEventListener("click", () => Pages.showCompanyForm(null));
     document.getElementById("btn-bulk-company").addEventListener("click", () => Pages.showCompanyBulkImport(load));
@@ -679,9 +699,11 @@ const Pages = {
 
   showMemoForm(companyId) {
     openModal("企業メモを追加", `
+      ${UserPrefs.templateSelectHtml("company_memo", "memo-template-select")}
       <div class="form-group"><label>タイトル</label><input id="memo-title" /></div>
       <div class="form-group" style="margin-top:12px"><label>内容 *</label><textarea id="memo-content"></textarea></div>
     `, `<button class="btn" onclick="closeModal()">キャンセル</button><button class="btn btn-primary" id="save-memo">保存</button>`);
+    UserPrefs.wireTemplateSelect("memo-template-select", "#memo-content", document.getElementById("modal-body"));
     document.getElementById("save-memo").onclick = async () => {
       const title = document.getElementById("memo-title").value;
       const content = document.getElementById("memo-content").value;
@@ -820,7 +842,9 @@ const Pages = {
         <div class="form-group"><label>現職</label><input name="current_company" value="${escapeHtml(j.current_company || "")}" /></div>
         <div class="form-group"><label>転職希望時期</label><input name="desired_timing" value="${escapeHtml(j.desired_timing || "")}" /></div>
         <div class="form-group"><label>転職希望職種</label><input name="desired_job_type" value="${escapeHtml(j.desired_job_type || "")}" /></div>
-        <div class="form-group full"><label>メモ</label><textarea name="notes">${escapeHtml(j.notes || "")}</textarea></div>
+        <div class="form-group full"><label>メモ</label>
+          ${UserPrefs.templateSelectHtml("seeker_note", "seeker-note-template-select")}
+          <textarea name="notes">${escapeHtml(j.notes || "")}</textarea></div>
         ${j.id ? `
         <div class="form-group"><label>履歴書 PDF</label><input type="file" accept="application/pdf" id="resume-file" /></div>
         <div class="form-group"><label>職務経歴書 PDF</label><input type="file" accept="application/pdf" id="cv-file" /></div>
@@ -840,6 +864,7 @@ const Pages = {
       <button class="btn btn-primary" id="modal-save">保存</button>
     `);
     Pages.wireSeekerImport(document.getElementById("modal-body"));
+    UserPrefs.wireTemplateSelect("seeker-note-template-select", '[name="notes"]', document.getElementById("modal-body"));
     VoiceInput.wireSeekerForm(document.getElementById("modal-body"), (blob) => API.transcribe(blob));
     document.getElementById("modal-cancel").onclick = closeModal;
     if (id) {
@@ -925,7 +950,8 @@ const Pages = {
       const sid = document.getElementById("filter-seeker").value;
       if (cid) params.client_company_id = cid;
       if (sid) params.job_seeker_id = sid;
-      const { tasks } = await API.tasks(params);
+      const { tasks: rawTasks } = await API.tasks(params);
+      const tasks = UserPrefs.sortTasks(rawTasks);
       const list = document.getElementById("tasks-list");
       list.innerHTML = Pages.renderTaskTable(tasks, true);
       list.querySelectorAll("[data-complete-task]").forEach((btn) => {
@@ -1098,35 +1124,7 @@ const Pages = {
     };
   },
 
-  async settings(container) {
-    if (!Auth.isOrgMember()) {
-      container.innerHTML = `<div class="card empty-state">法人メンバー登録後に設定できます</div>`;
-      return;
-    }
-    const { settings } = await API.orgSettings();
-    const canEdit = Auth.isOrgAdmin();
-    container.innerHTML = `
-      <div class="card">
-        <h2 style="margin-bottom:16px">Google Drive 連携</h2>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:16px">
-          サービスアカウントにフォルダを「編集者」で共有したうえで、フォルダ ID を登録してください。
-        </p>
-        <div class="form-group"><label>Google Drive フォルダ ID</label>
-          <input id="drive-folder-id" value="${escapeHtml(settings.google_drive_folder_id || "")}" ${canEdit ? "" : "disabled"} />
-        </div>
-        ${canEdit ? `<button class="btn btn-primary" id="save-settings" style="margin-top:16px">保存</button>` : `<p style="margin-top:12px;color:var(--muted)">org_admin のみ編集可能</p>`}
-      </div>
-    `;
-    if (canEdit) {
-      document.getElementById("save-settings").onclick = async () => {
-        try {
-          await API.saveOrgSettings({
-            google_drive_folder_id: document.getElementById("drive-folder-id").value,
-            google_drive_enabled: true,
-          });
-          showToast("設定を保存しました");
-        } catch (e) { showToast(e.message); }
-      };
-    }
+  async myPage(container) {
+    await MyPage.render(container);
   },
 };

@@ -238,6 +238,7 @@ const API = {
   },
   orgSettings() { return this.get("/api/org/settings"); },
   saveOrgSettings(body) { return this.patch("/api/org/settings", body); },
+  orgActivityLog(limit = 50) { return this.get(`/api/org/activity-log?limit=${limit}`); },
 };
 
 API.restoreSession();

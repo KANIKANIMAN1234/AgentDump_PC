@@ -1209,3 +1209,102 @@ textarea:focus {
 
 .chat-page .task-item-title { flex: 1; }
 .chat-page .task-item-due { font-size: 10px; color: var(--gray-dark); white-space: nowrap; }
+
+/* マイページ */
+.my-page-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.my-page-section--wide { grid-column: 1 / -1; }
+
+.my-page-heading {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dulton-navy);
+}
+
+.my-page-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.my-page-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.my-page-avatar--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-blue);
+  font-size: 24px;
+}
+
+.my-page-name { font-size: 16px; font-weight: 700; }
+.my-page-meta { font-size: 12px; color: var(--gray-dark); margin-top: 4px; }
+
+.my-page-list,
+.my-page-checklist,
+.my-page-preset-list,
+.my-page-activity {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.my-page-checklist li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.my-page-checklist li.done { color: var(--gray-dark); }
+
+.my-page-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.my-page-subsection { margin-top: 16px; }
+.my-page-subsection h3 { font-size: 12px; margin: 0 0 8px; color: var(--gray-dark); }
+
+.my-page-toggles { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.my-page-toggles label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+.my-page-hint { font-size: 12px; color: var(--gray-dark); margin: 0; line-height: 1.6; }
+
+.my-page-preset-list { list-style: none; padding: 0; }
+.my-page-preset-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.my-page-activity { list-style: none; padding: 0; }
+.my-page-activity li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.my-page-activity-at {
+  display: block;
+  font-size: 11px;
+  color: var(--gray-dark);
+  margin-bottom: 2px;
+}
+
+@media (max-width: 900px) {
+  .my-page-grid { grid-template-columns: 1fr; }
+}
