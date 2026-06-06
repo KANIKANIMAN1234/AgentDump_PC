@@ -1,5 +1,6 @@
 const PAGE_TITLES = {
   dashboard: "ダッシュボード",
+  chat: "チャット",
   companies: "採用企業",
   "job-seekers": "転職者",
   tasks: "タスク",
@@ -48,14 +49,18 @@ const App = {
 
     document.getElementById("page-title").textContent = PAGE_TITLES[page];
     const container = document.getElementById("page-content");
+    container.className = "page-content";
     container.innerHTML = `<div class="empty-state">読み込み中...</div>`;
 
     try {
-      const fn = Pages[page.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] || Pages[page];
-      if (page === "job-seekers") await Pages.jobSeekers(container);
+      if (page === "chat") await ChatPage.render(container);
+      else if (page === "job-seekers") await Pages.jobSeekers(container);
       else if (page === "organization") await Pages.organization(container);
-      else if (fn) await fn(container);
-      else container.innerHTML = `<div class="empty-state">ページが見つかりません</div>`;
+      else {
+        const fn = Pages[page.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] || Pages[page];
+        if (fn) await fn(container);
+        else container.innerHTML = `<div class="empty-state">ページが見つかりません</div>`;
+      }
     } catch (e) {
       container.innerHTML = `<div class="card empty-state" style="color:var(--danger)">${escapeHtml(e.message)}</div>`;
     }

@@ -221,6 +221,14 @@ const API = {
     return data;
   },
   exportInsights() { return this.post("/api/export-insights", {}); },
+  messages() { return this.get("/api/messages"); },
+  chat(message) { return this.post("/api/chat", { message }); },
+  suggestCategories(content) { return this.post("/api/suggest-categories", { content }); },
+  async completeTask(id, result) {
+    const data = await this.patch("/api/tasks", { id, action: "complete", result: result || null });
+    this.invalidateList();
+    return data;
+  },
   orgSettings() { return this.get("/api/org/settings"); },
   saveOrgSettings(body) { return this.patch("/api/org/settings", body); },
 };
