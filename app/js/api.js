@@ -239,6 +239,9 @@ const API = {
   orgSettings() { return this.get("/api/org/settings"); },
   saveOrgSettings(body) { return this.patch("/api/org/settings", body); },
   orgActivityLog(limit = 50) { return this.get(`/api/org/activity-log?limit=${limit}`); },
+  memberPreferences() { return this.get("/api/member/preferences"); },
+  saveMemberPreferences(body) { return this.patch("/api/member/preferences", body); },
+  testLineNotification() { return this.post("/api/member/preferences", {}); },
 };
 
 API.restoreSession();

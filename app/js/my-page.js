@@ -42,6 +42,13 @@ const MyPage = {
       } catch (_) {}
     }
 
+    let serverPrefs = null;
+    if (isMember) {
+      try {
+        serverPrefs = (await API.memberPreferences()).preferences;
+      } catch (_) {}
+    }
+
     const companies = dash.companies || [];
     const seekers = dash.jobSeekers || [];
     const tasks = dash.tasks || [];
@@ -49,7 +56,18 @@ const MyPage = {
     const presets = UserPrefs.getCompanyPresets();
     const templates = UserPrefs.getTemplates();
     const csvHistory = UserPrefs.getCsvExportHistory();
-    const notif = prefs.notifications;
+    const notif = {
+      ...prefs.notifications,
+      ...(serverPrefs ? {
+        lineEnabled: serverPrefs.lineEnabled,
+        dueTomorrow: serverPrefs.dueTomorrow,
+        dueTodayHigh: serverPrefs.dueTodayHigh,
+        browserEnabled: serverPrefs.browserEnabled ?? prefs.notifications.browserEnabled,
+      } : {}),
+    };
+    if (serverPrefs) {
+      UserPrefs.setNotifications(notif);
+    }
 
     const checks = [
       { ok: isMember && !me.needsOrgSetup, label: "組織登録が完了している", page: "organization" },
@@ -151,13 +169,23 @@ const MyPage = {
 
         <section class="card my-page-section my-page-section--wide">
           <h2 class="my-page-heading">通知設定</h2>
-          <p class="my-page-hint">ブラウザ通知は AgentDump を開いている間に期限リマインドを表示します（LINE 通知は今後対応予定）。</p>
-          <div class="my-page-toggles">
-            <label><input type="checkbox" id="pref-notif-browser" ${notif.browserEnabled ? "checked" : ""} /> ブラウザ通知を有効化</label>
-            <label><input type="checkbox" id="pref-notif-tomorrow" ${notif.dueTomorrow ? "checked" : ""} /> 期限前日のタスク</label>
-            <label><input type="checkbox" id="pref-notif-today-high" ${notif.dueTodayHigh ? "checked" : ""} /> 当日・高優先度タスク</label>
+          <div class="my-page-subsection">
+            <h3>LINE 通知（毎朝9時頃）</h3>
+            <p class="my-page-hint">LINE 公式アカウントを友だち追加し、LIFF でログインしている LINE アカウントに Push 通知します。</p>
+            <div class="my-page-toggles">
+              <label><input type="checkbox" id="pref-notif-line" ${notif.lineEnabled ? "checked" : ""} ${isMember ? "" : "disabled"} /> LINE 通知を有効化</label>
+              <label><input type="checkbox" id="pref-notif-tomorrow" ${notif.dueTomorrow ? "checked" : ""} /> 期限前日のタスク</label>
+              <label><input type="checkbox" id="pref-notif-today-high" ${notif.dueTodayHigh ? "checked" : ""} /> 当日・高優先度タスク</label>
+            </div>
+            <button type="button" class="btn btn-sm" id="pref-notif-line-test" style="margin-top:8px" ${isMember ? "" : "disabled"}>LINE テスト通知を送信</button>
           </div>
-          <button type="button" class="btn btn-sm" id="pref-notif-permission" style="margin-top:8px">通知の許可を確認</button>
+          <div class="my-page-subsection">
+            <h3>ブラウザ通知（アプリ起動中）</h3>
+            <div class="my-page-toggles">
+              <label><input type="checkbox" id="pref-notif-browser" ${notif.browserEnabled ? "checked" : ""} /> ブラウザ通知を有効化</label>
+            </div>
+            <button type="button" class="btn btn-sm" id="pref-notif-permission" style="margin-top:8px">ブラウザ通知の許可を確認</button>
+          </div>
         </section>
 
         ${isAdmin ? `
@@ -229,15 +257,39 @@ const MyPage = {
       });
     });
 
-    const saveNotif = () => {
-      UserPrefs.setNotifications({
-        browserEnabled: document.getElementById("pref-notif-browser")?.checked,
+    const saveNotif = async () => {
+      const payload = {
+        lineEnabled: document.getElementById("pref-notif-line")?.checked,
         dueTomorrow: document.getElementById("pref-notif-tomorrow")?.checked,
         dueTodayHigh: document.getElementById("pref-notif-today-high")?.checked,
+        browserEnabled: document.getElementById("pref-notif-browser")?.checked,
+      };
+      UserPrefs.setNotifications({
+        browserEnabled: payload.browserEnabled,
+        lineEnabled: payload.lineEnabled,
+        dueTomorrow: payload.dueTomorrow,
+        dueTodayHigh: payload.dueTodayHigh,
       });
+      if (isMember) {
+        try {
+          await API.saveMemberPreferences(payload);
+        } catch (e) {
+          showToast(e.message);
+        }
+      }
     };
-    ["pref-notif-browser", "pref-notif-tomorrow", "pref-notif-today-high"].forEach((id) => {
-      document.getElementById(id)?.addEventListener("change", saveNotif);
+    ["pref-notif-line", "pref-notif-browser", "pref-notif-tomorrow", "pref-notif-today-high"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("change", () => { saveNotif(); });
+    });
+
+    document.getElementById("pref-notif-line-test")?.addEventListener("click", async () => {
+      try {
+        await saveNotif();
+        const res = await API.testLineNotification();
+        showToast(res.message || "テスト通知を送信しました");
+      } catch (e) {
+        showToast(e.message);
+      }
     });
 
     document.getElementById("pref-notif-permission")?.addEventListener("click", async () => {
@@ -248,6 +300,11 @@ const MyPage = {
       const perm = await Notification.requestPermission();
       showToast(perm === "granted" ? "通知が許可されました" : "通知が許可されませんでした");
     });
+  },
+
+  dateInTokyo(addDays = 0) {
+    const base = new Date(Date.now() + addDays * 86400000);
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(base);
   },
 
   async checkNotifications() {
@@ -261,11 +318,8 @@ const MyPage = {
       return;
     }
 
-    const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+    const todayStr = this.dateInTokyo(0);
+    const tomorrowStr = this.dateInTokyo(1);
     const prefs = UserPrefs.load();
     const notified = prefs.notifiedKeys || {};
 
