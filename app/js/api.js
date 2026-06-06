@@ -16,6 +16,7 @@ const API = {
     this.sessionToken = token;
     if (token) sessionStorage.setItem("agentdump_session", token);
     else sessionStorage.removeItem("agentdump_session");
+    this.invalidateList();
   },
 
   restoreSession() {
